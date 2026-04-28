@@ -1,7 +1,3 @@
-app.get("/", (req, res) => {
-  res.send("Gemini Backend is LIVE ✅");
-});
-app.use(express.json({ limit: "20mb" }));
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -11,81 +7,70 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// ---------- BASIC TEST ROUTE ----------
+// root check
 app.get("/", (req, res) => {
-  res.send("✅ Gemini Backend Running");
+  res.send("Gemini Backend is LIVE ✅");
 });
+
+// ---------- UNIVERSAL HANDLER ----------
+async function runPrompt(prompt) {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+}
 
 // ---------- CHAT ----------
 app.post("/chat", async (req, res) => {
   try {
     const { message, context } = req.body;
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction:
-        "You are the Organic Agroflow Intelligence Node, helping farmers, wholesalers and retailers optimize organic supply chains.",
-    });
-
-    const result = await model.generateContent(
+    const reply = await runPrompt(
       `Context: ${JSON.stringify(context)}\nUser: ${message}`
     );
 
-    res.json({ reply: result.response.text() });
+    res.json({ reply });
   } catch (e) {
-    console.error(e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// ---------- DEMAND PREDICTION ----------
+// ---------- DEMAND ----------
 app.post("/demand", async (req, res) => {
   try {
     const { crops } = req.body;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const result = await model.generateContent(
-      `Predict 30-day demand trend for these crops: ${JSON.stringify(crops)}. 
-       Respond as JSON array with cropId, trend(up/down/stable), reasoning.`
+    const text = await runPrompt(
+      `Predict demand trends as JSON for: ${JSON.stringify(crops)}`
     );
 
-    const text = result.response.text().replace(/```json|```/g, "").trim();
-    res.json(JSON.parse(text));
+    res.json(JSON.parse(text.replace(/```json|```/g, "").trim()));
   } catch (e) {
-    console.error(e);
-    res.status(500).json([]);
+    res.json([]); // fallback so frontend never crashes
   }
 });
 
-// ---------- CROP RECOMMENDATION ----------
+// ---------- RECOMMEND ----------
 app.post("/recommend", async (req, res) => {
   try {
     const { weather, marketDemand } = req.body;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const result = await model.generateContent(
-      `Suggest 2 crops based on weather ${JSON.stringify(
+    const text = await runPrompt(
+      `Suggest crops in JSON based on weather ${JSON.stringify(
         weather
-      )} and market demand ${JSON.stringify(
-        marketDemand
-      )}. Respond as JSON array with name, matchScore, reasoning.`
+      )} and demand ${JSON.stringify(marketDemand)}`
     );
 
-    const text = result.response.text().replace(/```json|```/g, "").trim();
-    res.json(JSON.parse(text));
+    res.json(JSON.parse(text.replace(/```json|```/g, "").trim()));
   } catch (e) {
-    console.error(e);
-    res.status(500).json([]);
+    res.json([]);
   }
 });
 
-// ---------- AUDIO TRANSCRIPTION ----------
+// ---------- TRANSCRIBE ----------
 app.post("/transcribe", async (req, res) => {
   try {
     const { base64Audio, mimeType } = req.body;
@@ -93,24 +78,21 @@ app.post("/transcribe", async (req, res) => {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const result = await model.generateContent([
+      { text: "Transcribe this audio" },
       {
         inlineData: {
           data: base64Audio,
-          mimeType: mimeType,
+          mimeType,
         },
       },
-      "Transcribe this audio accurately. Respond only with text.",
     ]);
 
-    res.json({ text: result.response.text().trim() });
+    res.json({ text: result.response.text() });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ text: "" });
+    res.json({ text: "" });
   }
 });
 
-// ---------- START SERVER ----------
+// ---------- START ----------
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Gemini backend running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log("Server running 🚀"));
