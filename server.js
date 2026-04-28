@@ -11,7 +11,7 @@ app.use(express.json({ limit: "20mb" }));
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// ✅ ROOT FIX (important)
+// ✅ FIX ROOT (this removes your error)
 app.get("/", (req, res) => {
   res.send("Gemini Backend is LIVE ✅");
 });
@@ -27,11 +27,9 @@ async function runPrompt(prompt) {
 app.post("/chat", async (req, res) => {
   try {
     const { message, context } = req.body;
-
     const reply = await runPrompt(
       `Context: ${JSON.stringify(context)}\nUser: ${message}`
     );
-
     res.json({ reply });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -41,12 +39,9 @@ app.post("/chat", async (req, res) => {
 // ✅ DEMAND
 app.post("/demand", async (req, res) => {
   try {
-    const { crops } = req.body;
-
     const text = await runPrompt(
-      `Return demand prediction as JSON: ${JSON.stringify(crops)}`
+      `Return demand prediction JSON for crops: ${JSON.stringify(req.body.crops)}`
     );
-
     res.json(JSON.parse(text.replace(/```json|```/g, "").trim()));
   } catch {
     res.json([]);
@@ -56,14 +51,11 @@ app.post("/demand", async (req, res) => {
 // ✅ RECOMMEND
 app.post("/recommend", async (req, res) => {
   try {
-    const { weather, marketDemand } = req.body;
-
     const text = await runPrompt(
-      `Suggest crops as JSON based on weather ${JSON.stringify(
-        weather
-      )} and demand ${JSON.stringify(marketDemand)}`
+      `Suggest crops JSON using weather ${JSON.stringify(
+        req.body.weather
+      )} and demand ${JSON.stringify(req.body.marketDemand)}`
     );
-
     res.json(JSON.parse(text.replace(/```json|```/g, "").trim()));
   } catch {
     res.json([]);
@@ -93,6 +85,5 @@ app.post("/transcribe", async (req, res) => {
   }
 });
 
-// start
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log("Server running 🚀"));
